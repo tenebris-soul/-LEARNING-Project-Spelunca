@@ -12,13 +12,7 @@ async function main() {
 
   document.body.appendChild(app.canvas);
 
-  const game = new Game(app.canvas);
-
-  const box = new Graphics();
-  box.rect(100, 100, 200, 150);
-  box.fill(0x4fc3f7);
-
-  app.stage.addChild(box);
+  const game = new Game(app);
 
   game.init();
 

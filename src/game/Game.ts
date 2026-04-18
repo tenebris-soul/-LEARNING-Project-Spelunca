@@ -1,22 +1,24 @@
-import type { GameType } from "../types/gameType";
-import type { LevelDataType } from "../types/levelType";
-import type { PlayerType } from "../types/playerType";
+import type { Application } from "pixi.js";
+import { canOccupy, type LevelDataType } from "../types/levelType";
 
-import { levels } from "../data/levels";
-import { Player } from "./player";
+import { levels } from "../data/Levels";
+import { Player } from "./Player";
 import { Keys } from "./Input";
+import { Renderer } from "./Renderer";
+import { Raycaster } from "./Raycaster";
 
-export class Game implements GameType {
-  player: PlayerType;
+export class Game {
+  player: Player | null = null;
   levels: Record<string, LevelDataType>;
-  canvas: HTMLCanvasElement;
+  raycaster: Raycaster;
+  renderer: Renderer;
 
   private currentLevel: LevelDataType | null = null;
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.player = {} as PlayerType;
+  constructor(app: Application) {
     this.levels = levels;
-    this.canvas = canvas;
+    this.renderer = new Renderer(app);
+    this.raycaster = new Raycaster();
   }
 
   init() {
@@ -26,8 +28,24 @@ export class Game implements GameType {
   }
 
   update() {
+    const level = this.currentLevel;
+
+    if (!level || !this.player) {
+      return;
+    }
+
     if (Keys["KeyW"] || Keys["ArrowUp"]) {
-      this.player.moveForward();
+      const step = this.player.getForwardStep();
+      const nextX = this.player.x + step.x;
+      const nextY = this.player.y + step.y;
+
+      if (canOccupy(level, nextX, this.player.y)) {
+        this.player.x = nextX;
+      }
+
+      if (canOccupy(level, this.player.x, nextY)) {
+        this.player.y = nextY;
+      }
     }
 
     if (Keys["KeyA"] || Keys["ArrowLeft"]) {
@@ -37,5 +55,17 @@ export class Game implements GameType {
     if (Keys["KeyD"] || Keys["ArrowRight"]) {
       this.player.rotate("Right");
     }
+
+    const raycastHits = this.raycaster.castRays(
+      this.player.x,
+      this.player.y,
+      this.player.angle,
+      this.player.getFovInRadians(),
+      120,
+      level,
+    );
+
+    // this.renderer.DebugView(level, this.player, raycastHits);
+    this.renderer.DrawScene(raycastHits);
   }
 }
