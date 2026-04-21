@@ -1,8 +1,9 @@
+import type { Vec2 } from "./gameStructure/vectorType";
+
 export type RaycastHitType = {
-  distance: number;
-  hitX: number;
-  hitY: number;
-  mapX: number;
-  mapY: number;
-  side: number;
+  correctDistance: number;
+  hit: Vec2;
+  wallIndex: number;
+  textureU: number;
+  normal: Vec2;
 };

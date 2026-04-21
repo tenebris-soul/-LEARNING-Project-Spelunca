@@ -1,108 +1,278 @@
-import type { LevelDataType } from "../types/levelType";
+import type { LevelDataType } from "../types/levelStructure/levelType";
 import type { RaycastHitType } from "../types/raycastHitType";
+import type { Vec2 } from "../types/gameStructure/vectorType";
+
+type BestRaycastHit = RaycastHitType | null;
+type SectorHitCandidate = {
+  hit: Vec2;
+  wallIndex: number;
+  textureU: number;
+  normal: Vec2;
+};
 
 export class Raycaster {
+  private readonly eps = 0.00001;
+  private readonly maxViewDist = 100;
+  private readonly maxPortalDepth = 16;
+
+  private cross(a: Vec2, b: Vec2): number {
+    return a.x * b.y - a.y * b.x;
+  }
+
+  private dot(a: Vec2, b: Vec2): number {
+    return a.x * b.x + a.y * b.y;
+  }
+
+  private normalize(v: Vec2): Vec2 {
+    const length = Math.hypot(v.x, v.y);
+    if (length < this.eps) {
+      return { x: 0, y: 0 };
+    }
+
+    return {
+      x: v.x / length,
+      y: v.y / length,
+    };
+  }
+
+  private getFarHit(playerPos: Vec2, rayAngle: number): RaycastHitType {
+    const D = { x: Math.cos(rayAngle), y: Math.sin(rayAngle) };
+
+    return {
+      correctDistance: this.maxViewDist,
+      hit: {
+        x: playerPos.x + D.x * this.maxViewDist,
+        y: playerPos.y + D.y * this.maxViewDist,
+      },
+      wallIndex: -1,
+      textureU: 0,
+      normal: {
+        x: 0,
+        y: 0,
+      },
+    };
+  }
+
+  private isPointInSector(
+    point: Vec2,
+    sectorIndex: number,
+    level: LevelDataType,
+  ): boolean {
+    const sector = level.sectors[sectorIndex];
+    if (!sector || sector.walls.length < 3) {
+      return false;
+    }
+
+    const vertices = sector.walls.map((wallIndex) => level.walls[wallIndex].a);
+    let inside = false;
+
+    for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+      const a = vertices[i];
+      const b = vertices[j];
+      const intersects =
+        a.y > point.y !== b.y > point.y &&
+        point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+
+      if (intersects) {
+        inside = !inside;
+      }
+    }
+
+    return inside;
+  }
+
+  private findSectorIndex(point: Vec2, level: LevelDataType): number | null {
+    for (let i = 0; i < level.sectors.length; i++) {
+      if (this.isPointInSector(point, i, level)) {
+        return i;
+      }
+    }
+
+    return null;
+  }
+
+  private getAdjacentSector(
+    wallIndex: number,
+    currentSectorIndex: number,
+    level: LevelDataType,
+  ): number | null {
+    const wall = level.walls[wallIndex];
+
+    if (wall.frontSector === currentSectorIndex) {
+      return wall.backSector ?? null;
+    }
+
+    if (wall.backSector === currentSectorIndex) {
+      return wall.frontSector ?? null;
+    }
+
+    return null;
+  }
+
+  private findNearestHitInSector(
+    origin: Vec2,
+    direction: Vec2,
+    sectorIndex: number,
+    level: LevelDataType,
+    ignoredWallIndex: number | null,
+  ): SectorHitCandidate | null {
+    const sector = level.sectors[sectorIndex];
+    if (!sector) {
+      return null;
+    }
+
+    let bestT = Infinity;
+    let bestCandidate: SectorHitCandidate | null = null;
+
+    for (let i = 0; i < sector.walls.length; i++) {
+      const wallIndex = sector.walls[i];
+      if (wallIndex === ignoredWallIndex) {
+        continue;
+      }
+
+      const wall = level.walls[wallIndex];
+      const A = wall.a;
+      const B = wall.b;
+      const S = { x: B.x - A.x, y: B.y - A.y };
+      const AP = { x: A.x - origin.x, y: A.y - origin.y };
+      const denom = this.cross(direction, S);
+
+      if (Math.abs(denom) < this.eps) {
+        continue;
+      }
+
+      const t = this.cross(AP, S) / denom;
+      const u = this.cross(AP, direction) / denom;
+
+      if (t <= this.eps || u < 0 || u > 1 || t >= bestT) {
+        continue;
+      }
+
+      const hit = {
+        x: origin.x + direction.x * t,
+        y: origin.y + direction.y * t,
+      };
+
+      let normal = this.normalize({ x: -S.y, y: S.x });
+      if (this.dot(normal, direction) > 0) {
+        normal = {
+          x: -normal.x,
+          y: -normal.y,
+        };
+      }
+
+      bestT = t;
+      bestCandidate = {
+        hit,
+        wallIndex,
+        textureU: u,
+        normal,
+      };
+    }
+
+    return bestCandidate;
+  }
+
   castRay(
-    posX: number,
-    posY: number,
+    playerPos: Vec2,
     rayAngle: number,
     playerAngle: number,
-    levelData: LevelDataType,
-  ) {
-    const rayDirX = Math.cos(rayAngle);
-    const rayDirY = Math.sin(rayAngle);
+    level: LevelDataType,
+  ): BestRaycastHit {
+    const direction = { x: Math.cos(rayAngle), y: Math.sin(rayAngle) };
+    let currentSectorIndex = this.findSectorIndex(playerPos, level);
 
-    let mapX = Math.floor(posX);
-    let mapY = Math.floor(posY);
-
-    let deltaDistX = rayDirX === 0 ? Infinity : Math.abs(1 / rayDirX);
-    let deltaDistY = rayDirY === 0 ? Infinity : Math.abs(1 / rayDirY);
-
-    let stepX = rayDirX < 0 ? -1 : 1;
-    let stepY = rayDirY < 0 ? -1 : 1;
-
-    let sideDistX =
-      rayDirX < 0
-        ? (posX - mapX) * deltaDistX
-        : (mapX + 1.0 - posX) * deltaDistX;
-    let sideDistY =
-      rayDirY < 0
-        ? (posY - mapY) * deltaDistY
-        : (mapY + 1.0 - posY) * deltaDistY;
-
-    let isHitted = false;
-    let side = 0;
-
-    while (!isHitted) {
-      if (sideDistX < sideDistY) {
-        sideDistX += deltaDistX;
-        mapX += stepX;
-        side = 0;
-      } else {
-        sideDistY += deltaDistY;
-        mapY += stepY;
-        side = 1;
-      }
-
-      if (
-        mapX >= 0 &&
-        mapX < levelData.width &&
-        mapY >= 0 &&
-        mapY < levelData.height
-      ) {
-        if (levelData.tiles[mapY * levelData.width + mapX] === 1) {
-          isHitted = true;
-        }
-      }
+    if (currentSectorIndex === null) {
+      return null;
     }
 
-    let rawDistance: number;
-    if (side === 0) {
-      rawDistance = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-    } else {
-      rawDistance = (mapY - posY + (1 - stepY) / 2) / rayDirY;
+    let origin = playerPos;
+    let ignoredWallIndex: number | null = null;
+
+    for (let depth = 0; depth < this.maxPortalDepth; depth++) {
+      const nearestHit = this.findNearestHitInSector(
+        origin,
+        direction,
+        currentSectorIndex,
+        level,
+        ignoredWallIndex,
+      );
+
+      if (!nearestHit) {
+        return null;
+      }
+
+      const wall = level.walls[nearestHit.wallIndex];
+      if (wall.solid) {
+        const rawDistance = Math.hypot(
+          nearestHit.hit.x - playerPos.x,
+          nearestHit.hit.y - playerPos.y,
+        );
+
+        return {
+          correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
+          hit: nearestHit.hit,
+          wallIndex: nearestHit.wallIndex,
+          textureU: nearestHit.textureU,
+          normal: nearestHit.normal,
+        };
+      }
+
+      const nextSectorIndex = this.getAdjacentSector(
+        nearestHit.wallIndex,
+        currentSectorIndex,
+        level,
+      );
+
+      if (nextSectorIndex === null) {
+        const rawDistance = Math.hypot(
+          nearestHit.hit.x - playerPos.x,
+          nearestHit.hit.y - playerPos.y,
+        );
+
+        return {
+          correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
+          hit: nearestHit.hit,
+          wallIndex: nearestHit.wallIndex,
+          textureU: nearestHit.textureU,
+          normal: nearestHit.normal,
+        };
+      }
+
+      origin = {
+        x: nearestHit.hit.x + direction.x * this.eps * 10,
+        y: nearestHit.hit.y + direction.y * this.eps * 10,
+      };
+      currentSectorIndex = nextSectorIndex;
+      ignoredWallIndex = nearestHit.wallIndex;
     }
 
-    const hitX = posX + rayDirX * rawDistance;
-    const hitY = posY + rayDirY * rawDistance;
-
-    const distance = rawDistance * Math.cos(rayAngle - playerAngle);
-
-    const hit: RaycastHitType = {
-      distance,
-      hitX,
-      hitY,
-      mapX,
-      mapY,
-      side,
-    };
-
-    return hit;
+    return null;
   }
 
   castRays(
-    playerX: number,
-    playerY: number,
+    playerPos: Vec2,
     playerAngle: number,
     fov: number,
     numRays: number,
-    levelData: LevelDataType,
+    level: LevelDataType,
   ): RaycastHitType[] {
     const hits: RaycastHitType[] = [];
+
     const startAngle = playerAngle - fov / 2;
     const angleStep = fov / numRays;
 
     for (let i = 0; i < numRays; i++) {
-      const rayAngle = startAngle + i * angleStep;
-      const hit = this.castRay(
-        playerX,
-        playerY,
-        rayAngle,
-        playerAngle,
-        levelData,
-      );
-      hits.push(hit);
+      const rayAngle = startAngle + (i + 0.5) * angleStep;
+      const hit = this.castRay(playerPos, rayAngle, playerAngle, level);
+
+      if (hit != null) {
+        hits.push(hit);
+      } else {
+        hits.push(this.getFarHit(playerPos, rayAngle));
+      }
     }
+
     return hits;
   }
 }

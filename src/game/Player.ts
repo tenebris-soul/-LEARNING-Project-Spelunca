@@ -1,8 +1,8 @@
-import type { DirectionType } from "../types/directionType";
+import { Direction } from "../types/directionType";
+import type { Vec2 } from "../types/gameStructure/vectorType";
 
 export class Player {
-  x: number;
-  y: number;
+  pos: Vec2 = { x: 0, y: 0 };
   angle: number;
   fov: number;
 
@@ -10,22 +10,22 @@ export class Player {
   rotationSpeed: number;
 
   constructor(x: number, y: number, angle: number) {
-    this.x = x;
-    this.y = y;
+    this.pos.x = x;
+    this.pos.y = y;
     this.angle = angle;
     this.fov = 75;
 
     this.speed = 0.075;
-    this.rotationSpeed = 0.08;
+    this.rotationSpeed = 0.025;
   }
 
   moveForward(): void {
-    this.x += Math.cos(this.angle) * this.speed;
-    this.y += Math.sin(this.angle) * this.speed;
+    this.pos.x += Math.cos(this.angle) * this.speed;
+    this.pos.y += Math.sin(this.angle) * this.speed;
   }
 
-  rotate(dir: DirectionType): void {
-    const rotationDirection = dir === "Left" ? -1 : 1;
+  rotate(dir: Direction): void {
+    const rotationDirection = dir === Direction.Left ? -1 : 1;
     this.angle += rotationDirection * this.rotationSpeed;
   }
 
