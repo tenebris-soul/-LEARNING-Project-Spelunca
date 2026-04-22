@@ -1,9 +1,9 @@
 import type { LevelDataType } from "../types/levelStructure/levelType";
-import type { RaycastHitType } from "../types/raycastHitType";
-import type { Vec2 } from "../types/gameStructure/vectorType";
+import type { DetailedRayResult, RaySegment } from "../types/raycastHitType";
+import type { Vec2 } from "../types/gameStructure/vector2Type";
 
-type BestRaycastHit = RaycastHitType | null;
 type SectorHitCandidate = {
+  t: number;
   hit: Vec2;
   wallIndex: number;
   textureU: number;
@@ -35,21 +35,25 @@ export class Raycaster {
     };
   }
 
-  private getFarHit(playerPos: Vec2, rayAngle: number): RaycastHitType {
+  private getFarHit(playerPos: Vec2, rayAngle: number): DetailedRayResult {
     const D = { x: Math.cos(rayAngle), y: Math.sin(rayAngle) };
 
     return {
-      correctDistance: this.maxViewDist,
-      hit: {
-        x: playerPos.x + D.x * this.maxViewDist,
-        y: playerPos.y + D.y * this.maxViewDist,
+      finalHit: {
+        correctDistance: this.maxViewDist,
+        hit: {
+          x: playerPos.x + D.x * this.maxViewDist,
+          y: playerPos.y + D.y * this.maxViewDist,
+        },
+        wallIndex: -1,
+        textureU: 0,
+        normal: {
+          x: 0,
+          y: 0,
+        },
+        sectorIndex: -1,
       },
-      wallIndex: -1,
-      textureU: 0,
-      normal: {
-        x: 0,
-        y: 0,
-      },
+      segments: [],
     };
   }
 
@@ -163,6 +167,7 @@ export class Raycaster {
 
       bestT = t;
       bestCandidate = {
+        t: bestT,
         hit,
         wallIndex,
         textureU: u,
@@ -178,16 +183,20 @@ export class Raycaster {
     rayAngle: number,
     playerAngle: number,
     level: LevelDataType,
-  ): BestRaycastHit {
+  ): DetailedRayResult {
+    // Направление текущего луча.
     const direction = { x: Math.cos(rayAngle), y: Math.sin(rayAngle) };
     let currentSectorIndex = this.findSectorIndex(playerPos, level);
 
     if (currentSectorIndex === null) {
-      return null;
+      return { finalHit: null, segments: [] };
     }
 
     let origin = playerPos;
     let ignoredWallIndex: number | null = null;
+
+    let enterT = 0;
+    const segments: RaySegment[] = [];
 
     for (let depth = 0; depth < this.maxPortalDepth; depth++) {
       const nearestHit = this.findNearestHitInSector(
@@ -199,10 +208,38 @@ export class Raycaster {
       );
 
       if (!nearestHit) {
-        return null;
+        return { finalHit: null, segments };
       }
 
       const wall = level.walls[nearestHit.wallIndex];
+      // Если стена не solid, пробуем перейти в соседний сектор.
+      const nextSector = wall.solid
+        ? null
+        : this.getAdjacentSector(
+            nearestHit.wallIndex,
+            currentSectorIndex,
+            level,
+          );
+
+      const exitTVec = {
+        x: nearestHit.hit.x - playerPos.x,
+        y: nearestHit.hit.y - playerPos.y,
+      } as Vec2;
+
+      const exitT = Math.hypot(exitTVec.x, exitTVec.y);
+
+      segments.push({
+        sectorIndex: currentSectorIndex,
+        enterT,
+        exitT,
+        exitWallIndex: nearestHit.wallIndex,
+        exitKind: wall.solid
+          ? "solid"
+          : nextSector !== null
+            ? "portal"
+            : "void",
+      });
+
       if (wall.solid) {
         const rawDistance = Math.hypot(
           nearestHit.hit.x - playerPos.x,
@@ -210,11 +247,15 @@ export class Raycaster {
         );
 
         return {
-          correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
-          hit: nearestHit.hit,
-          wallIndex: nearestHit.wallIndex,
-          textureU: nearestHit.textureU,
-          normal: nearestHit.normal,
+          finalHit: {
+            correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
+            hit: nearestHit.hit,
+            wallIndex: nearestHit.wallIndex,
+            textureU: nearestHit.textureU,
+            normal: nearestHit.normal,
+            sectorIndex: currentSectorIndex,
+          },
+          segments,
         };
       }
 
@@ -231,11 +272,15 @@ export class Raycaster {
         );
 
         return {
-          correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
-          hit: nearestHit.hit,
-          wallIndex: nearestHit.wallIndex,
-          textureU: nearestHit.textureU,
-          normal: nearestHit.normal,
+          finalHit: {
+            correctDistance: rawDistance * Math.cos(rayAngle - playerAngle),
+            hit: nearestHit.hit,
+            wallIndex: nearestHit.wallIndex,
+            textureU: nearestHit.textureU,
+            normal: nearestHit.normal,
+            sectorIndex: currentSectorIndex,
+          },
+          segments,
         };
       }
 
@@ -245,9 +290,10 @@ export class Raycaster {
       };
       currentSectorIndex = nextSectorIndex;
       ignoredWallIndex = nearestHit.wallIndex;
+      enterT = exitT;
     }
 
-    return null;
+    return { finalHit: null, segments };
   }
 
   castRays(
@@ -256,8 +302,8 @@ export class Raycaster {
     fov: number,
     numRays: number,
     level: LevelDataType,
-  ): RaycastHitType[] {
-    const hits: RaycastHitType[] = [];
+  ): DetailedRayResult[] {
+    const hits: DetailedRayResult[] = [];
 
     const startAngle = playerAngle - fov / 2;
     const angleStep = fov / numRays;

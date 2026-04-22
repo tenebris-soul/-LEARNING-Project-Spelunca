@@ -1,4 +1,4 @@
-import type { LevelDataType } from "../types/levelStructure/levelType";
+import type { LevelDataType } from "../../types/levelStructure/levelType";
 
 const point = (x: number, y: number) => ({ x, y });
 const portalColor = 0x20242a;
@@ -22,7 +22,9 @@ export const levels: Record<string, LevelDataType> = {
         b: point(6.2, 1.2),
         solid: true,
         frontSector: 0,
-        color: 0x5fa8ff,
+        // color: 0x5fa8ff,
+        textureName: "banner",
+        textureRepeat: 1,
       },
       {
         a: point(6.2, 1.2),
@@ -153,23 +155,23 @@ export const levels: Record<string, LevelDataType> = {
     sectors: [
       {
         floor: 0,
-        ceil: 1.3,
+        ceil: 1.1,
         walls: [0, 1, 2, 3, 4, 5, 6, 7],
-        floorColor: 0x2b2d42,
+        floorColor: 0xd8e4f2,
         ceilColor: 0x8d99ae,
       },
       {
-        floor: 0,
-        ceil: 1.6,
+        floor: 0.45,
+        ceil: 2.05,
         walls: [9, 10, 11, 12, 13, 14, 15, 16],
-        floorColor: 0x283618,
+        floorColor: 0xf2dfcf,
         ceilColor: 0xfefae0,
       },
       {
-        floor: 0,
-        ceil: 1.45,
+        floor: 0.15,
+        ceil: 1.35,
         walls: [3, 17, 15, 8],
-        floorColor: 0x344e41,
+        floorColor: 0xd5e9df,
         ceilColor: 0xdad7cd,
       },
     ],

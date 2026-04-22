@@ -1,4 +1,4 @@
-import type { Vec2 } from "../gameStructure/vectorType";
+import type { Vec2 } from "../gameStructure/vector2Type";
 
 export type Wall = {
   a: Vec2;
@@ -7,4 +7,6 @@ export type Wall = {
   frontSector?: number;
   backSector?: number;
   color?: number;
+  textureName?: string;
+  textureRepeat?: number;
 };

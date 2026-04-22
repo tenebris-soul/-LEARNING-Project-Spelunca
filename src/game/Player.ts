@@ -1,19 +1,32 @@
 import { Direction } from "../types/directionType";
-import type { Vec2 } from "../types/gameStructure/vectorType";
+import type { Vec2 } from "../types/gameStructure/vector2Type";
 
 export class Player {
   pos: Vec2 = { x: 0, y: 0 };
+  playerZ: number;
+  floorZ: number;
   angle: number;
   fov: number;
+  eyeHeight: number;
 
   speed: number;
   rotationSpeed: number;
 
-  constructor(x: number, y: number, angle: number) {
+  constructor(
+    x: number,
+    y: number,
+    angle: number,
+    eyeHeight: number,
+    floorZ: number,
+  ) {
     this.pos.x = x;
     this.pos.y = y;
     this.angle = angle;
     this.fov = 75;
+    this.eyeHeight = eyeHeight;
+    this.floorZ = floorZ;
+
+    this.playerZ = this.floorZ + this.eyeHeight;
 
     this.speed = 0.075;
     this.rotationSpeed = 0.025;
@@ -22,6 +35,8 @@ export class Player {
   moveForward(): void {
     this.pos.x += Math.cos(this.angle) * this.speed;
     this.pos.y += Math.sin(this.angle) * this.speed;
+
+    this.playerZ = this.floorZ + this.eyeHeight;
   }
 
   rotate(dir: Direction): void {

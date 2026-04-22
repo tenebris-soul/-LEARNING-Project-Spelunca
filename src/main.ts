@@ -14,7 +14,7 @@ async function main() {
 
   const game = new Game(app);
 
-  game.init();
+  await game.init();
 
   app.ticker.add(() => {
     game.update();

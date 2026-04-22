@@ -1,13 +1,15 @@
 import type { Application } from "pixi.js";
 import { type LevelDataType } from "../types/levelStructure/levelType";
 
-import { levels } from "../data/Levels";
+import { levels } from "../data/levels/Levels";
 import { Player } from "./Player";
 import { Keys } from "./Input";
 import { Renderer } from "./Renderer";
 import { Raycaster } from "./Raycaster";
 import { Direction } from "../types/directionType";
 import { canOccupy } from "../utils/canOccupy";
+import { getSectorFloorZ } from "../utils/getSectorFloorZ";
+import { Lerp } from "../utils/mathUtils";
 
 // type Example = {
 //   a: boolean,
@@ -38,10 +40,15 @@ export class Game {
     this.raycaster = new Raycaster();
   }
 
-  init() {
+  async init() {
     this.currentLevel = this.levels["test_level"];
     const spawn = this.currentLevel.playerSpawn;
-    this.player = new Player(spawn.x, spawn.y, spawn.angle);
+
+    const playerFloorZ = getSectorFloorZ(this.currentLevel, spawn.x, spawn.y);
+
+    this.player = new Player(spawn.x, spawn.y, spawn.angle, 0.5, playerFloorZ);
+
+    await this.renderer.init(160);
   }
 
   update() {
@@ -58,10 +65,24 @@ export class Game {
 
       if (canOccupy(level, nextX, this.player.pos.y)) {
         this.player.pos.x = nextX;
+
+        const newFloorZ = getSectorFloorZ(
+          level,
+          this.player.pos.x,
+          this.player.pos.y,
+        );
+        this.player.floorZ = newFloorZ;
       }
 
       if (canOccupy(level, this.player.pos.x, nextY)) {
         this.player.pos.y = nextY;
+
+        const newFloorZ = getSectorFloorZ(
+          level,
+          this.player.pos.x,
+          this.player.pos.y,
+        );
+        this.player.floorZ = newFloorZ;
       }
     }
 
@@ -81,12 +102,12 @@ export class Game {
       level,
     );
 
-    this.renderer.DrawScene(
-      raycastHits,
-      level,
-      this.player.getFovInRadians(),
-      160,
+    this.player.playerZ = Lerp(
+      this.player.playerZ,
+      this.player.floorZ + this.player.eyeHeight,
+      0.25,
     );
+    this.renderer.DrawScene(raycastHits, level, this.player, 160);
     // this.renderer.DebugView(level, this.player, raycastHits);
   }
 }

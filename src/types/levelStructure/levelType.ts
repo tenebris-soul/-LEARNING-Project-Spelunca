@@ -1,4 +1,4 @@
-import type { PlayerSpawnPoint } from "../playerSpawnPointType";
+import type { PlayerSpawnPoint } from "./playerSpawnPointType";
 import type { Sector } from "./sectorType";
 import type { Wall } from "./wallType";
 

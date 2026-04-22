@@ -1,5 +1,5 @@
 import type { LevelDataType } from "../types/levelStructure/levelType";
-import type { Vec2 } from "../types/gameStructure/vectorType";
+import type { Vec2 } from "../types/gameStructure/vector2Type";
 
 const eps = 0.0001;
 
@@ -18,7 +18,7 @@ function isPointOnSegment(point: Vec2, a: Vec2, b: Vec2): boolean {
   return dot <= sqLen + eps;
 }
 
-function isPointInPolygon(point: Vec2, vertices: Vec2[]): boolean {
+export function isPointInPolygon(point: Vec2, vertices: Vec2[]): boolean {
   let inside = false;
 
   for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
@@ -30,7 +30,7 @@ function isPointInPolygon(point: Vec2, vertices: Vec2[]): boolean {
     }
 
     const intersects =
-      (a.y > point.y) !== (b.y > point.y) &&
+      a.y > point.y !== b.y > point.y &&
       point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
 
     if (intersects) {
@@ -54,4 +54,23 @@ export function canOccupy(level: LevelDataType, x: number, y: number): boolean {
   }
 
   return false;
+}
+
+export function getPlayerSector(
+  level: LevelDataType,
+  x: number,
+  y: number,
+): number {
+  const point = { x, y };
+
+  for (let i = 0; i < level.sectors.length; i++) {
+    const sector = level.sectors[i];
+    const vertices = sector.walls.map((wallIndex) => level.walls[wallIndex].a);
+
+    if (vertices.length >= 3 && isPointInPolygon(point, vertices)) {
+      return i;
+    }
+  }
+
+  return -1;
 }
