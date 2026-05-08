@@ -136,6 +136,8 @@ export class Player {
 
       if (isPointInSector(level, nextSector, this.x, this.y)) {
         this.currentSectorIndex = nextSector;
+        this.eyeHeight =
+          level.sectors[nextSector].floorHeight + this.playerHeight;
         return;
       }
     }

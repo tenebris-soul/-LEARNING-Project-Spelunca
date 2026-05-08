@@ -40,7 +40,7 @@ export const testLevel: Level = {
       ceilingTexture: "ceiling_metal",
     },
     {
-      floorHeight: -0.5,
+      floorHeight: 1,
       ceilingHeight: 5,
       floorTexture: "floor_tiles",
       ceilingTexture: "ceiling_concrete",

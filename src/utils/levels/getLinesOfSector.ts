@@ -12,7 +12,13 @@ export function getLinesOfSector(
   let lines: Linedef[] = [];
 
   for (const line of level.lines) {
-    if (level.sides[line.frontSidedefIndex].sector === sectorIndex) {
+    const frontSector = level.sides[line.frontSidedefIndex].sector;
+    const backSector =
+      line.backSidedefIndex !== null
+        ? level.sides[line.backSidedefIndex].sector
+        : null;
+
+    if (frontSector === sectorIndex || backSector === sectorIndex) {
       lines.push(line);
     }
   }

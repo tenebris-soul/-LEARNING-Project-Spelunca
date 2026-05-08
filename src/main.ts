@@ -30,6 +30,9 @@ async function main() {
 
   const renderer = new Renderer(player, app.canvas.width, app.canvas.height);
 
+  const speluncaGraphics = new Graphics();
+  app.stage.addChild(speluncaGraphics);
+
   if (!isLevelStructureValid(level)) return;
   renderer.changeLevel(level);
 
@@ -41,9 +44,6 @@ async function main() {
 
   const raysGraphics = new Graphics();
   app.stage.addChild(raysGraphics);
-
-  const speluncaGraphics = new Graphics();
-  app.stage.addChild(speluncaGraphics);
 
   renderer.constructTopDown(playerGraphics, levelGraphics, raysGraphics);
   renderer.constructSpelunca(speluncaGraphics);
