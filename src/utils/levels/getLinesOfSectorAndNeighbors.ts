@@ -32,13 +32,20 @@ function getPortalNeighborLines(level: Level, portal: Linedef): Linedef[] {
     if (portal === line) continue;
 
     if (
-      line.v1Index === portal.v1Index ||
-      line.v2Index === portal.v2Index ||
-      line.v1Index == portal.v2Index ||
-      line.v2Index === portal.v1Index
+      isSameVertex(line.v1, portal.v1) ||
+      isSameVertex(line.v2, portal.v2) ||
+      isSameVertex(line.v1, portal.v2) ||
+      isSameVertex(line.v2, portal.v1)
     )
       portalNeighbors.push(line);
   }
 
   return portalNeighbors;
+}
+
+function isSameVertex(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): boolean {
+  return a.x === b.x && a.y === b.y;
 }

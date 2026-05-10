@@ -1,9 +1,10 @@
 import { testLevel } from "./levels/testLevel";
 import "./style.css";
-import { Application, Graphics } from "pixi.js";
+import { Application, Graphics, Sprite, Texture } from "pixi.js";
 import { isLevelStructureValid } from "./utils/levels/checkLevelStructure";
 import { Player } from "./player";
 import { Renderer } from "./renderer";
+import { BSPTreeBuilder } from "./bsp/bspBuilder";
 
 const appElement = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -28,7 +29,20 @@ async function main() {
     level, // УБРАТЬ ЭТО НАФИГ ПОТОМЫ
   );
 
-  const renderer = new Renderer(player, app.canvas.width, app.canvas.height);
+  const bspBuilder = new BSPTreeBuilder(level);
+  const bspRoot = bspBuilder.getTree();
+
+  if (!bspRoot) return;
+
+  const renderer = new Renderer(player);
+
+  const surfaceCanvas = document.createElement("canvas");
+  surfaceCanvas.width = app.canvas.width;
+  surfaceCanvas.height = app.canvas.height;
+
+  const surfaceTexture = Texture.from(surfaceCanvas);
+  const surfaceSprite = new Sprite(surfaceTexture);
+  app.stage.addChild(surfaceSprite);
 
   const speluncaGraphics = new Graphics();
   app.stage.addChild(speluncaGraphics);
@@ -39,19 +53,26 @@ async function main() {
   const levelGraphics = new Graphics();
   app.stage.addChild(levelGraphics);
 
+  const bspGraphics = new Graphics();
+  app.stage.addChild(bspGraphics);
+
   const playerGraphics = new Graphics();
   app.stage.addChild(playerGraphics);
 
   const raysGraphics = new Graphics();
   app.stage.addChild(raysGraphics);
 
-  renderer.constructTopDown(playerGraphics, levelGraphics, raysGraphics);
-  renderer.constructSpelunca(speluncaGraphics);
+  renderer.constructTopDown(
+    playerGraphics,
+    levelGraphics,
+    bspGraphics,
+    raysGraphics,
+    bspRoot,
+  );
 
   app.ticker.add((ticker) => {
     player.handleMovement(ticker.elapsedMS / 1000.0, level);
 
-    renderer.renderFromCamera();
     renderer.renderTopDown();
   });
 }

@@ -1,30 +1,33 @@
 // LEVEL DONE BY CHATGPT
 
 import type { Level } from "../types/levelLogic/level";
+import type { Vertex } from "../types/sectorLogic/vertex";
+
+const vertices: Vertex[] = [
+  // Room A: 6 углов
+  { x: 0, y: 1 }, // 0
+  { x: 2, y: -1 }, // 1
+  { x: 7, y: -1 }, // 2
+  { x: 9, y: 2 }, // 3 shared A/corridor
+  { x: 7, y: 6 }, // 4 shared A/corridor
+  { x: 1, y: 5 }, // 5
+
+  // Corridor + Room B shared portal
+  { x: 14, y: 2.5 }, // 6 shared corridor/B
+  { x: 14, y: 4 }, // 7 shared corridor/B
+
+  // Room B: 6 углов, другая форма
+  { x: 18, y: 1 }, // 8
+  { x: 23, y: 3 }, // 9
+  { x: 24, y: 7 }, // 10
+  { x: 21, y: 10 }, // 11
+  { x: 16, y: 9 }, // 12
+];
 
 export const testLevel: Level = {
   name: "TestLevel",
 
-  vertices: [
-    // Room A: 6 углов
-    { x: 0, y: 1 }, // 0
-    { x: 2, y: -1 }, // 1
-    { x: 7, y: -1 }, // 2
-    { x: 9, y: 2 }, // 3 shared A/corridor
-    { x: 7, y: 6 }, // 4 shared A/corridor
-    { x: 1, y: 5 }, // 5
-
-    // Corridor + Room B shared portal
-    { x: 14, y: 2.5 }, // 6 shared corridor/B
-    { x: 14, y: 4 }, // 7 shared corridor/B
-
-    // Room B: 6 углов, другая форма
-    { x: 18, y: 1 }, // 8
-    { x: 23, y: 3 }, // 9
-    { x: 24, y: 7 }, // 10
-    { x: 21, y: 10 }, // 11
-    { x: 16, y: 9 }, // 12
-  ],
+  vertices,
 
   sectors: [
     {
@@ -74,31 +77,106 @@ export const testLevel: Level = {
 
   lines: [
     // Room A
-    { v1Index: 0, v2Index: 1, frontSidedefIndex: 0, backSidedefIndex: null },
-    { v1Index: 1, v2Index: 2, frontSidedefIndex: 1, backSidedefIndex: null },
-    { v1Index: 2, v2Index: 3, frontSidedefIndex: 2, backSidedefIndex: null },
+    {
+      v1: vertices[0],
+      v2: vertices[1],
+      frontSidedefIndex: 0,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[1],
+      v2: vertices[2],
+      frontSidedefIndex: 1,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[2],
+      v2: vertices[3],
+      frontSidedefIndex: 2,
+      backSidedefIndex: null,
+    },
 
     // Portal Room A <-> Corridor
-    { v1Index: 3, v2Index: 4, frontSidedefIndex: 3, backSidedefIndex: 6 },
+    {
+      v1: vertices[3],
+      v2: vertices[4],
+      frontSidedefIndex: 3,
+      backSidedefIndex: 6,
+    },
 
-    { v1Index: 4, v2Index: 5, frontSidedefIndex: 4, backSidedefIndex: null },
-    { v1Index: 5, v2Index: 0, frontSidedefIndex: 5, backSidedefIndex: null },
+    {
+      v1: vertices[4],
+      v2: vertices[5],
+      frontSidedefIndex: 4,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[5],
+      v2: vertices[0],
+      frontSidedefIndex: 5,
+      backSidedefIndex: null,
+    },
 
     // Corridor
-    { v1Index: 3, v2Index: 6, frontSidedefIndex: 7, backSidedefIndex: null },
+    {
+      v1: vertices[3],
+      v2: vertices[6],
+      frontSidedefIndex: 7,
+      backSidedefIndex: null,
+    },
 
     // Portal Corridor <-> Room B
-    { v1Index: 6, v2Index: 7, frontSidedefIndex: 8, backSidedefIndex: 10 },
+    {
+      v1: vertices[6],
+      v2: vertices[7],
+      frontSidedefIndex: 8,
+      backSidedefIndex: 10,
+    },
 
-    { v1Index: 7, v2Index: 4, frontSidedefIndex: 9, backSidedefIndex: null },
+    {
+      v1: vertices[7],
+      v2: vertices[4],
+      frontSidedefIndex: 9,
+      backSidedefIndex: null,
+    },
 
     // Room B
-    { v1Index: 6, v2Index: 8, frontSidedefIndex: 11, backSidedefIndex: null },
-    { v1Index: 8, v2Index: 9, frontSidedefIndex: 12, backSidedefIndex: null },
-    { v1Index: 9, v2Index: 10, frontSidedefIndex: 13, backSidedefIndex: null },
-    { v1Index: 10, v2Index: 11, frontSidedefIndex: 14, backSidedefIndex: null },
-    { v1Index: 11, v2Index: 12, frontSidedefIndex: 15, backSidedefIndex: null },
-    { v1Index: 12, v2Index: 7, frontSidedefIndex: 16, backSidedefIndex: null },
+    {
+      v1: vertices[6],
+      v2: vertices[8],
+      frontSidedefIndex: 11,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[8],
+      v2: vertices[9],
+      frontSidedefIndex: 12,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[9],
+      v2: vertices[10],
+      frontSidedefIndex: 13,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[10],
+      v2: vertices[11],
+      frontSidedefIndex: 14,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[11],
+      v2: vertices[12],
+      frontSidedefIndex: 15,
+      backSidedefIndex: null,
+    },
+    {
+      v1: vertices[12],
+      v2: vertices[7],
+      frontSidedefIndex: 16,
+      backSidedefIndex: null,
+    },
   ],
 
   playerStart: {

@@ -4,17 +4,27 @@ import { isValidIndex } from "../isValidIndex";
 export function isLevelStructureValid(level: Level): boolean {
   const { vertices, lines, sides, sectors } = level;
 
+  // FIX: Linedef now stores concrete vertices, so validate coordinates directly.
+  for (let i: number = 0; i < vertices.length; i++) {
+    const vertex = vertices[i];
+
+    if (!Number.isFinite(vertex.x) || !Number.isFinite(vertex.y)) {
+      console.error(`Vertex ${i} has invalid coordinates`);
+      return false;
+    }
+  }
+
   for (let i: number = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // проверяем существование вертексов
-    if (
-      !isValidIndex(line.v1Index, vertices.length) ||
-      !isValidIndex(line.v2Index, vertices.length)
-    ) {
-      console.error(`Vertices of line ${i} does not exist`);
-      return false;
-    }
+    // // проверяем существование вертексов
+    // if (
+    //   !isValidIndex(line.v1Index, vertices.length) ||
+    //   !isValidIndex(line.v2Index, vertices.length)
+    // ) {
+    //   console.error(`Vertices of line ${i} does not exist`);
+    //   return false;
+    // }
 
     // проверяем существование передней стороны линии
     if (!isValidIndex(line.frontSidedefIndex, sides.length)) {

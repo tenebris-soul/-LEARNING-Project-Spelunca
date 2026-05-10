@@ -86,8 +86,8 @@ export class Player {
       for (const line of currentSectorLines) {
         if (line.backSidedefIndex !== null) continue;
 
-        const A = level.vertices[line.v1Index];
-        const B = level.vertices[line.v2Index];
+        const A = line.v1;
+        const B = line.v2;
 
         const AB = { x: B.x - A.x, y: B.y - A.y };
         const AP = { x: nextX - A.x, y: nextY - A.y };

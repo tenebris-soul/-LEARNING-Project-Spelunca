@@ -17,8 +17,8 @@ export function isPointInSector(
 
     if (frontSector !== sectorIndex && backSector !== sectorIndex) continue;
 
-    const A = level.vertices[line.v1Index];
-    const B = level.vertices[line.v2Index];
+    const A = line.v1;
+    const B = line.v2;
 
     const intersects =
       A.y > y !== B.y > y && x < ((B.x - A.x) * (y - A.y)) / (B.y - A.y) + A.x;

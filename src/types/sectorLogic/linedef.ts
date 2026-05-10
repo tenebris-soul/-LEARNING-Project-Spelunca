@@ -1,6 +1,8 @@
+import type { Vertex } from "./vertex";
+
 export type Linedef = {
-  v1Index: number;
-  v2Index: number;
+  v1: Vertex;
+  v2: Vertex;
   frontSidedefIndex: number;
   backSidedefIndex: number | null;
 };
