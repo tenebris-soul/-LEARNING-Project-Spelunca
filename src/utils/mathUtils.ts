@@ -29,3 +29,7 @@ export function lerpAtX(
   const t = (x - x1) / (x2 - x1);
   return y1 + (y2 - y1) * t;
 }
+
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}

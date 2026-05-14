@@ -12,6 +12,9 @@ export class Player {
   y: number;
   angle: number;
 
+  near: number = 0.01;
+  fov: number = (75 * Math.PI) / 180;
+
   radius: number = 0.25;
   speed: number = 3;
   turnSpeed: number = 2;

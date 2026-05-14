@@ -5,6 +5,8 @@ import { isLevelStructureValid } from "./utils/levels/checkLevelStructure";
 import { Player } from "./player";
 import { Renderer } from "./renderer";
 import { BSPTreeBuilder } from "./bsp/bspBuilder";
+import { BSPTraverser } from "./bsp/bspTraverser";
+import { isLinePotentiallyVisible } from "./utils/render/isLinePotentiallyVisible";
 
 const appElement = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -32,9 +34,11 @@ async function main() {
   const bspBuilder = new BSPTreeBuilder(level);
   const bspRoot = bspBuilder.getTree();
 
+  const bspTraverser = new BSPTraverser();
+
   if (!bspRoot) return;
 
-  const renderer = new Renderer(player);
+  const renderer = new Renderer(player, app.canvas.width, app.canvas.height);
 
   const surfaceCanvas = document.createElement("canvas");
   surfaceCanvas.width = app.canvas.width;
@@ -70,10 +74,22 @@ async function main() {
     bspRoot,
   );
 
+  renderer.construct3D(speluncaGraphics);
+
   app.ticker.add((ticker) => {
     player.handleMovement(ticker.elapsedMS / 1000.0, level);
 
-    renderer.renderTopDown();
+    const orderedWalls = bspTraverser.traverseFrontToBack(bspRoot, {
+      x: player.x,
+      y: player.y,
+    });
+
+    const renderCandidates = orderedWalls.filter((line) =>
+      isLinePotentiallyVisible(line, player),
+    );
+
+    renderer.renderTopDown(renderCandidates);
+    renderer.render3D(renderCandidates);
   });
 }
 
