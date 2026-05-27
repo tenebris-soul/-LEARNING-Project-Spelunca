@@ -101,12 +101,14 @@ export class BSPTreeBuilder {
           v2: { x: splitPoint.x, y: splitPoint.y },
           frontSidedefIndex: line.frontSidedefIndex,
           backSidedefIndex: line.backSidedefIndex,
+          textureWorldSize: line.textureWorldSize,
         };
         const secondPartLine: Linedef = {
           v1: { x: splitPoint.x, y: splitPoint.y },
           v2: { x: line.v2.x, y: line.v2.y },
           frontSidedefIndex: line.frontSidedefIndex,
           backSidedefIndex: line.backSidedefIndex,
+          textureWorldSize: line.textureWorldSize,
         };
 
         const firstLinePartSide = this.getLineSide(firstPartLine, splitter);

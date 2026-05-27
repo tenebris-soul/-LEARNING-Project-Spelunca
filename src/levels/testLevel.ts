@@ -82,6 +82,7 @@ export const testLevel: Level = {
       v2: vertices[1],
       frontSidedefIndex: 0,
       backSidedefIndex: null,
+      textureWorldSize: 6,
     },
     {
       v1: vertices[1],

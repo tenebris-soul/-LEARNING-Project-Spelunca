@@ -1,4 +1,4 @@
-import type { Graphics } from "pixi.js";
+import type { Graphics, Texture } from "pixi.js";
 import type { Level } from "./types/levelLogic/level";
 import type { Player } from "./player";
 import type { BSPNode } from "./types/bsp/bspNode";
@@ -7,8 +7,30 @@ import type { Vertex } from "./types/sectorLogic/vertex";
 import { lerp } from "./utils/mathUtils";
 import type { Sector } from "./types/sectorLogic/sector";
 import { getPlayerSideByLine } from "./utils/levels/getPlayerSideByLine";
+import { getTexture } from "./utils/loadTextures";
 
 type CameraPoint = { x: number; z: number };
+type WallColumn = {
+  x: number;
+  y1: number;
+  y2: number;
+
+  textureId: string;
+  textureX: number;
+
+  wallY1: number;
+  wallY2: number;
+
+  shade: number;
+};
+type PlaneColumn = {
+  x: number;
+  y1: number;
+  y2: number;
+
+  sectorIndex: number;
+  type: "floor" | "ceiling";
+};
 
 export class Renderer {
   // top-down графика (дебаг)
@@ -24,7 +46,12 @@ export class Renderer {
   // 3d графика
   private screenWidth: number;
   private screenHeight: number;
-  private speluncaGraphics: Graphics | null = null;
+  private surfaceContext: CanvasRenderingContext2D | null = null;
+  private surfaceImageData: ImageData | null = null;
+  private surfaceTexture: Texture | null = null;
+
+  private textureWorldSize = 2;
+  private planeTextureWorldSize = 2;
 
   // база всякая
   private player: Player;
@@ -161,45 +188,68 @@ export class Renderer {
   }
 
   // 3d-визуализация
-  construct3D(spelunca: Graphics) {
-    this.speluncaGraphics = spelunca;
+  construct3D(surfaceCanvas: HTMLCanvasElement, surfaceTexture: Texture) {
+    const context = surfaceCanvas.getContext("2d");
+    if (context === null) {
+      throw new Error("Canvas 2D context is not available");
+    }
+
+    this.surfaceContext = context;
+    this.surfaceImageData = context.createImageData(
+      this.screenWidth,
+      this.screenHeight,
+    );
+    this.surfaceTexture = surfaceTexture;
   }
 
   render3D(lines: Linedef[]) {
-    if (this.speluncaGraphics === null) return;
+    if (this.surfaceContext === null || this.surfaceImageData === null) return;
     if (this.currentLevel === null) return;
 
-    this.speluncaGraphics.clear();
-    this.speluncaGraphics.rect(0, 0, this.screenWidth, this.screenHeight / 2);
-    this.speluncaGraphics.fill(0x17191d);
-    this.speluncaGraphics.rect(
-      0,
-      this.screenHeight / 2,
-      this.screenWidth,
-      this.screenHeight / 2,
-    );
-    this.speluncaGraphics.fill(0x2b2925);
+    this.clearFrameBuffer();
 
     const projectionPlaneDist =
       this.screenWidth / 2 / Math.tan(this.player.fov / 2);
 
     const openTop = new Array(this.screenWidth).fill(0);
     const openBottom = new Array(this.screenWidth).fill(this.screenHeight - 1);
+    const planeColumns: PlaneColumn[] = [];
+    const wallColumns: WallColumn[] = [];
 
     for (const line of lines) {
       if (line.backSidedefIndex === null)
-        this.drawSolidWall(line, projectionPlaneDist, openTop, openBottom);
-      else this.drawPortal(line, projectionPlaneDist, openTop, openBottom);
+        this.processSolidWall(
+          line,
+          projectionPlaneDist,
+          openTop,
+          openBottom,
+          planeColumns,
+          wallColumns,
+        );
+      else
+        this.processPortal(
+          line,
+          projectionPlaneDist,
+          openTop,
+          openBottom,
+          planeColumns,
+          wallColumns,
+        );
     }
+
+    this.drawPlaneColumns(planeColumns, projectionPlaneDist);
+    this.drawWallColumns(wallColumns);
+    this.presentFrameBuffer();
   }
 
-  private drawPortal(
+  private processPortal(
     line: Linedef,
     projectionPlaneDist: number,
     openTop: number[],
     openBot: number[],
+    planeColumns: PlaneColumn[],
+    wallColumns: WallColumn[],
   ) {
-    if (this.speluncaGraphics === null) return;
     if (this.currentLevel === null) return;
     if (line.backSidedefIndex === null) return;
 
@@ -210,15 +260,18 @@ export class Renderer {
 
     let currentSector: Sector;
     let neighborSector: Sector;
+    let currentSectorIndex: number;
 
     const playerSide = getPlayerSideByLine(line, {
       x: this.player.x,
       y: this.player.y,
     });
     if (playerSide === "front") {
+      currentSectorIndex = frontSectorIndex;
       currentSector = this.currentLevel.sectors[frontSectorIndex];
       neighborSector = this.currentLevel.sectors[backSectorIndex];
     } else {
+      currentSectorIndex = backSectorIndex;
       currentSector = this.currentLevel.sectors[backSectorIndex];
       neighborSector = this.currentLevel.sectors[frontSectorIndex];
     }
@@ -269,86 +322,152 @@ export class Renderer {
 
     if (xStart > xEnd) return;
 
-    if (neighborSector.ceilingHeight < currentSector.ceilingHeight) {
-      const wallTop = currentSector.ceilingHeight - this.player.eyeHeight;
-      const wallBot = neighborSector.ceilingHeight - this.player.eyeHeight;
+    const currentCeiling = currentSector.ceilingHeight - this.player.eyeHeight;
+    const neighborCeiling =
+      neighborSector.ceilingHeight - this.player.eyeHeight;
+    const currentFloor = currentSector.floorHeight - this.player.eyeHeight;
+    const neighborFloor = neighborSector.floorHeight - this.player.eyeHeight;
 
-      const screenYTop1 =
-        this.screenHeight / 2 - (wallTop * projectionPlaneDist) / p1.z;
+    const currentCeilingY1 =
+      this.screenHeight / 2 - (currentCeiling * projectionPlaneDist) / p1.z;
+    const currentCeilingY2 =
+      this.screenHeight / 2 - (currentCeiling * projectionPlaneDist) / p2.z;
+    const neighborCeilingY1 =
+      this.screenHeight / 2 - (neighborCeiling * projectionPlaneDist) / p1.z;
+    const neighborCeilingY2 =
+      this.screenHeight / 2 - (neighborCeiling * projectionPlaneDist) / p2.z;
 
-      const screenYBottom1 =
-        this.screenHeight / 2 - (wallBot * projectionPlaneDist) / p1.z;
+    const currentFloorY1 =
+      this.screenHeight / 2 - (currentFloor * projectionPlaneDist) / p1.z;
+    const currentFloorY2 =
+      this.screenHeight / 2 - (currentFloor * projectionPlaneDist) / p2.z;
+    const neighborFloorY1 =
+      this.screenHeight / 2 - (neighborFloor * projectionPlaneDist) / p1.z;
+    const neighborFloorY2 =
+      this.screenHeight / 2 - (neighborFloor * projectionPlaneDist) / p2.z;
 
-      const screenYTop2 =
-        this.screenHeight / 2 - (wallTop * projectionPlaneDist) / p2.z;
+    for (let x: number = xStart; x <= xEnd; x++) {
+      if (openTop[x] > openBot[x]) continue;
 
-      const screenYBottom2 =
-        this.screenHeight / 2 - (wallBot * projectionPlaneDist) / p2.z;
+      const t = (x - screenX1) / (screenX2 - screenX1);
 
-      for (let x: number = xStart; x <= xEnd; x++) {
-        if (openTop[x] > openBot[x]) continue;
+      const currentCeilingY = lerp(currentCeilingY1, currentCeilingY2, t);
+      const neighborCeilingY = lerp(neighborCeilingY1, neighborCeilingY2, t);
+      const currentFloorY = lerp(currentFloorY1, currentFloorY2, t);
+      const neighborFloorY = lerp(neighborFloorY1, neighborFloorY2, t);
 
-        const t = (x - screenX1) / (screenX2 - screenX1);
+      const prevOpenTop = openTop[x];
+      const prevOpenBot = openBot[x];
 
-        const yTop = lerp(screenYTop1, screenYTop2, t);
-        const yBottom = lerp(screenYBottom1, screenYBottom2, t);
+      const ceilingY1 = Math.ceil(prevOpenTop);
+      const ceilingY2 = Math.floor(Math.min(currentCeilingY, prevOpenBot));
 
-        const drawY1 = Math.ceil(Math.max(yTop, openTop[x]));
-        const drawY2 = Math.floor(Math.min(yBottom, openBot[x]));
-
-        if (drawY1 > drawY2) continue;
-
-        this.speluncaGraphics.rect(x, drawY1, 1, drawY2 - drawY1 + 1);
-        this.speluncaGraphics.fill(0xffff00);
-
-        openTop[x] = Math.max(openTop[x], drawY2);
+      if (ceilingY1 <= ceilingY2) {
+        planeColumns.push({
+          x,
+          y1: ceilingY1,
+          y2: ceilingY2,
+          sectorIndex: currentSectorIndex,
+          type: "ceiling",
+        });
       }
-    }
 
-    if (neighborSector.floorHeight > currentSector.floorHeight) {
-      const wallTop = neighborSector.floorHeight - this.player.eyeHeight;
-      const wallBot = currentSector.floorHeight - this.player.eyeHeight;
+      const floorY1 = Math.ceil(Math.max(currentFloorY, prevOpenTop));
+      const floorY2 = Math.floor(prevOpenBot);
 
-      const screenYTop1 =
-        this.screenHeight / 2 - (wallTop * projectionPlaneDist) / p1.z;
-
-      const screenYBottom1 =
-        this.screenHeight / 2 - (wallBot * projectionPlaneDist) / p1.z;
-
-      const screenYTop2 =
-        this.screenHeight / 2 - (wallTop * projectionPlaneDist) / p2.z;
-
-      const screenYBottom2 =
-        this.screenHeight / 2 - (wallBot * projectionPlaneDist) / p2.z;
-
-      for (let x: number = xStart; x <= xEnd; x++) {
-        if (openTop[x] > openBot[x]) continue;
-
-        const t = (x - screenX1) / (screenX2 - screenX1);
-
-        const yTop = lerp(screenYTop1, screenYTop2, t);
-        const yBottom = lerp(screenYBottom1, screenYBottom2, t);
-
-        const drawY1 = Math.ceil(Math.max(yTop, openTop[x]));
-        const drawY2 = Math.floor(Math.min(yBottom, openBot[x]));
-
-        if (drawY1 > drawY2) continue;
-
-        this.speluncaGraphics.rect(x, drawY1, 1, drawY2 - drawY1 + 1);
-        this.speluncaGraphics.fill(0xffff00);
-
-        openBot[x] = Math.min(openBot[x], drawY1);
+      if (floorY1 <= floorY2) {
+        planeColumns.push({
+          x,
+          y1: floorY1,
+          y2: floorY2,
+          sectorIndex: currentSectorIndex,
+          type: "floor",
+        });
       }
+
+      // получаем айди текстуры
+      let textureId;
+      let side;
+
+      if (playerSide === "front") {
+        side = this.currentLevel.sides[line.frontSidedefIndex];
+      } else {
+        side = this.currentLevel.sides[line.backSidedefIndex];
+      }
+
+      textureId = side.texture;
+
+      // считаем координату текстуры вдоль стены
+      const texture = getTexture(textureId);
+
+      const uOverDepth1 = u1 / p1.z;
+      const uOverDepth2 = u2 / p2.z;
+
+      const invDepth = lerp(1 / p1.z, 1 / p2.z, t);
+      const depth = 1 / invDepth;
+      const u = lerp(uOverDepth1, uOverDepth2, t) / invDepth;
+
+      const textureWorldSize = line.textureWorldSize ?? this.textureWorldSize;
+      const repeatU = u / textureWorldSize;
+      const textureX =
+        ((Math.floor(repeatU * texture.width) % texture.width) +
+          texture.width) %
+        texture.width;
+
+      const shade = Math.max(0.25, Math.min(1, 1 - depth / 24));
+
+      if (neighborCeilingY > currentCeilingY) {
+        const drawY1 = Math.ceil(Math.max(currentCeilingY, prevOpenTop));
+        const drawY2 = Math.floor(Math.min(neighborCeilingY, prevOpenBot));
+
+        if (drawY1 <= drawY2) {
+          wallColumns.push({
+            x,
+            y1: drawY1,
+            y2: drawY2,
+            textureId: textureId,
+            textureX: textureX,
+            wallY1: currentCeilingY,
+            wallY2: neighborCeilingY,
+            shade: shade,
+          });
+        }
+      }
+
+      if (neighborFloorY < currentFloorY) {
+        const drawY1 = Math.ceil(Math.max(neighborFloorY, prevOpenTop));
+        const drawY2 = Math.floor(Math.min(currentFloorY, prevOpenBot));
+
+        if (drawY1 <= drawY2) {
+          wallColumns.push({
+            x,
+            y1: drawY1,
+            y2: drawY2,
+            textureId: textureId,
+            textureX: textureX,
+            wallY1: neighborFloorY,
+            wallY2: currentFloorY,
+            shade: shade,
+          });
+        }
+      }
+
+      const portalOpenTop = Math.max(currentCeilingY, neighborCeilingY);
+      const portalOpenBot = Math.min(currentFloorY, neighborFloorY);
+
+      openTop[x] = Math.max(prevOpenTop, portalOpenTop);
+      openBot[x] = Math.min(prevOpenBot, portalOpenBot);
     }
   }
 
-  private drawSolidWall(
+  private processSolidWall(
     line: Linedef,
     projectionPlaneDist: number,
     openTop: number[],
     openBot: number[],
+    planeColumns: PlaneColumn[],
+    wallColumns: WallColumn[],
   ) {
-    if (this.speluncaGraphics === null) return;
     if (this.currentLevel === null) return;
 
     let p1 = this.getCameraPoint(line.v1);
@@ -440,6 +559,32 @@ export class Renderer {
       const yTop = lerp(screenY1.topScreen, screenY2.topScreen, t);
       const yBot = lerp(screenY1.botScreen, screenY2.botScreen, t);
 
+      const ceilingY1 = Math.ceil(openTop[x]);
+      const ceilingY2 = Math.floor(Math.min(yTop, openBot[x]));
+
+      if (ceilingY1 <= ceilingY2) {
+        planeColumns.push({
+          x,
+          y1: ceilingY1,
+          y2: ceilingY2,
+          sectorIndex: sectorIndex,
+          type: "ceiling",
+        });
+      }
+
+      const floorY1 = Math.ceil(Math.max(yBot, openTop[x]));
+      const floorY2 = Math.floor(openBot[x]);
+
+      if (floorY1 <= floorY2) {
+        planeColumns.push({
+          x,
+          y1: floorY1,
+          y2: floorY2,
+          sectorIndex: sectorIndex,
+          type: "floor",
+        });
+      }
+
       const drawY1 = Math.ceil(Math.max(yTop, openTop[x]));
       const drawY2 = Math.floor(Math.min(yBot, openBot[x]));
 
@@ -449,16 +594,30 @@ export class Renderer {
       const depth = 1 / invDepth;
 
       const u = lerp(uOverDepth1, uOverDepth2, t) / invDepth;
-      const textureStripe = Math.abs(Math.floor(u * 4)) % 2;
+      const textureWorldSize = line.textureWorldSize ?? this.textureWorldSize;
+      const repeatU = u / textureWorldSize;
       const shade = Math.max(0.25, Math.min(1, 1 - depth / 24));
-      const baseColor = textureStripe === 0 ? 0x8f8f78 : 0x777766;
-      const r = Math.floor(((baseColor >> 16) & 255) * shade);
-      const g = Math.floor(((baseColor >> 8) & 255) * shade);
-      const b = Math.floor((baseColor & 255) * shade);
-      const color = (r << 16) + (g << 8) + b;
 
-      this.speluncaGraphics.rect(x, drawY1, 1, drawY2 - drawY1 + 1);
-      this.speluncaGraphics.fill(color);
+      // считаем координату текстуры вдоль стены
+      const textureId = this.currentLevel.sides[line.frontSidedefIndex].texture;
+      const texture = getTexture(textureId);
+
+      // let textureX = Math.floor(u * textureScale) % textureWidth;
+      const textureX =
+        ((Math.floor(repeatU * texture.width) % texture.width) +
+          texture.width) %
+        texture.width;
+
+      wallColumns.push({
+        x,
+        y1: drawY1,
+        y2: drawY2,
+        textureId: textureId,
+        textureX: textureX,
+        wallY1: yTop,
+        wallY2: yBot,
+        shade: shade,
+      });
 
       // для открытых пространств не подойдёт
       // нужно что-то придумать
@@ -467,6 +626,136 @@ export class Renderer {
         openBot[x] = -1;
       }
     }
+  }
+
+  private drawPlaneColumns(
+    columns: PlaneColumn[],
+    projectionPlaneDist: number,
+  ) {
+    if (this.currentLevel === null) return;
+
+    const cosA = Math.cos(this.player.angle);
+    const sinA = Math.sin(this.player.angle);
+
+    for (const column of columns) {
+      const sector = this.currentLevel.sectors[column.sectorIndex];
+      const textureId =
+        column.type === "floor" ? sector.floorTexture : sector.ceilingTexture;
+      const texture = getTexture(textureId);
+
+      const cameraX =
+        (column.x - this.screenWidth / 2) / projectionPlaneDist;
+      const rayWorldX = cosA - cameraX * sinA;
+      const rayWorldY = sinA + cameraX * cosA;
+
+      for (let y = column.y1; y <= column.y2; y++) {
+        const screenY = y - this.screenHeight / 2;
+        if (Math.abs(screenY) < 0.00001) continue;
+
+        let depth: number;
+
+        if (column.type === "floor") {
+          depth =
+            ((this.player.eyeHeight - sector.floorHeight) *
+              projectionPlaneDist) /
+            screenY;
+        } else {
+          depth =
+            ((sector.ceilingHeight - this.player.eyeHeight) *
+              projectionPlaneDist) /
+            -screenY;
+        }
+
+        if (depth <= 0) continue;
+
+        const worldX = this.player.x + rayWorldX * depth;
+        const worldY = this.player.y + rayWorldY * depth;
+        const textureU = worldX / this.planeTextureWorldSize;
+        const textureV = worldY / this.planeTextureWorldSize;
+        const textureX =
+          ((Math.floor(textureU * texture.width) % texture.width) +
+            texture.width) %
+          texture.width;
+        const textureY =
+          ((Math.floor(textureV * texture.height) % texture.height) +
+            texture.height) %
+          texture.height;
+        const index = (textureY * texture.width + textureX) * 4;
+        const shade = Math.max(0.2, Math.min(1, 1 - depth / 32));
+        const r = Math.floor(texture.data[index] * shade);
+        const g = Math.floor(texture.data[index + 1] * shade);
+        const b = Math.floor(texture.data[index + 2] * shade);
+        const color = (r << 16) | (g << 8) | b;
+
+        this.putPixel(column.x, y, color);
+      }
+    }
+  }
+
+  private drawWallColumns(columns: WallColumn[]) {
+    for (const column of columns) {
+      const texture = getTexture(column.textureId);
+      const textureX =
+        ((Math.floor(column.textureX) % texture.width) + texture.width) %
+        texture.width;
+
+      for (let y = column.y1; y <= column.y2; y++) {
+        const v = (y - column.wallY1) / (column.wallY2 - column.wallY1);
+        const textureY = Math.max(
+          0,
+          Math.min(texture.height - 1, Math.floor(v * texture.height)),
+        );
+        const index = (textureY * texture.width + textureX) * 4;
+        const r = Math.floor(texture.data[index] * column.shade);
+        const g = Math.floor(texture.data[index + 1] * column.shade);
+        const b = Math.floor(texture.data[index + 2] * column.shade);
+        const color = (r << 16) | (g << 8) | b;
+
+        this.putPixel(column.x, y, color);
+      }
+    }
+  }
+
+  private clearFrameBuffer() {
+    if (this.surfaceImageData === null) return;
+
+    const data = this.surfaceImageData.data;
+
+    for (let y = 0; y < this.screenHeight; y++) {
+      const color = y < this.screenHeight / 2 ? 0x17191d : 0x2b2925;
+      const r = (color >> 16) & 255;
+      const g = (color >> 8) & 255;
+      const b = color & 255;
+
+      for (let x = 0; x < this.screenWidth; x++) {
+        const index = (y * this.screenWidth + x) * 4;
+        data[index] = r;
+        data[index + 1] = g;
+        data[index + 2] = b;
+        data[index + 3] = 255;
+      }
+    }
+  }
+
+  private putPixel(x: number, y: number, color: number) {
+    if (this.surfaceImageData === null) return;
+    if (x < 0 || x >= this.screenWidth || y < 0 || y >= this.screenHeight)
+      return;
+
+    const index = (y * this.screenWidth + x) * 4;
+    const data = this.surfaceImageData.data;
+
+    data[index] = (color >> 16) & 255;
+    data[index + 1] = (color >> 8) & 255;
+    data[index + 2] = color & 255;
+    data[index + 3] = 255;
+  }
+
+  private presentFrameBuffer() {
+    if (this.surfaceContext === null || this.surfaceImageData === null) return;
+
+    this.surfaceContext.putImageData(this.surfaceImageData, 0, 0);
+    this.surfaceTexture?.source.update();
   }
 
   private getCameraPoint(point: Vertex): CameraPoint {

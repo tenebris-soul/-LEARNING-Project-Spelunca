@@ -5,4 +5,5 @@ export type Linedef = {
   v2: Vertex;
   frontSidedefIndex: number;
   backSidedefIndex: number | null;
+  textureWorldSize?: number;
 };

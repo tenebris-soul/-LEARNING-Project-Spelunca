@@ -10,7 +10,7 @@ export function getPlayerSideByLine(
   const lineDirY = line.v2.y - line.v1.y;
 
   const toPlayerX = playerPos.x - line.v1.x;
-  const toPlayerY = playerPos.y - line.v2.y;
+  const toPlayerY = playerPos.y - line.v1.y;
 
   const side = lineDirX * toPlayerY - lineDirY * toPlayerX;
   const EPS = 0.00001;

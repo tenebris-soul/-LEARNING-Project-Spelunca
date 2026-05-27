@@ -7,6 +7,7 @@ import { Renderer } from "./renderer";
 import { BSPTreeBuilder } from "./bsp/bspBuilder";
 import { BSPTraverser } from "./bsp/bspTraverser";
 import { isLinePotentiallyVisible } from "./utils/render/isLinePotentiallyVisible";
+import { loadTextures } from "./utils/loadTextures";
 
 const appElement = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -22,6 +23,8 @@ async function main() {
   });
 
   appElement.appendChild(app.canvas);
+
+  await loadTextures();
 
   const player = new Player(
     level.playerStart.x,
@@ -48,9 +51,6 @@ async function main() {
   const surfaceSprite = new Sprite(surfaceTexture);
   app.stage.addChild(surfaceSprite);
 
-  const speluncaGraphics = new Graphics();
-  app.stage.addChild(speluncaGraphics);
-
   if (!isLevelStructureValid(level)) return;
   renderer.changeLevel(level);
 
@@ -74,7 +74,7 @@ async function main() {
     bspRoot,
   );
 
-  renderer.construct3D(speluncaGraphics);
+  renderer.construct3D(surfaceCanvas, surfaceTexture);
 
   app.ticker.add((ticker) => {
     player.handleMovement(ticker.elapsedMS / 1000.0, level);
